@@ -19,14 +19,20 @@ def load_data():
     csv_url = sheet_url.replace('/edit?usp=sharing', '/export?format=csv')
     
     df = pd.read_csv(csv_url)
-    df = df.dropna(subset=['Weight in Kgs'])
+    
+    # Update to the new exact column names
+    df = df.dropna(subset=['Actual Weight in Kgs'])
     df['Date'] = pd.to_datetime(df['Date'], format='%d-%b-%y')
     
     df['Steps'] = df['Steps'].fillna(0)
     df['Calories Burn'] = df['Calories Burn'].fillna(0)
     
-    df['7-Day Avg Weight'] = df['Weight in Kgs'].rolling(window=7, min_periods=1).mean()
-    df['Weight Change (kg)'] = df['Weight in Kgs'].diff()
+    # Ensure prediction column is treated as numeric to avoid plotting errors
+    df['Predicted Total Weight (Kgs)'] = pd.to_numeric(df['Predicted Total Weight (Kgs)'], errors='coerce')
+    
+    # Calculate trajectory based on Actual Weight
+    df['7-Day Avg Weight'] = df['Actual Weight in Kgs'].rolling(window=7, min_periods=1).mean()
+    df['Weight Change (kg)'] = df['Actual Weight in Kgs'].diff()
     df['Next Day Weight Change'] = df['Weight Change (kg)'].shift(-1)
     
     return df
@@ -52,8 +58,8 @@ def apply_mobile_layout(fig, is_heatmap=False):
 # 4. Top Level Metrics (Changed to 2x2 Grid for Mobile)
 # ==========================================
 st.subheader("🏆 Quick Stats")
-initial_weight = df['Weight in Kgs'].iloc[0]
-current_weight = df['Weight in Kgs'].iloc[-1]
+initial_weight = df['Actual Weight in Kgs'].iloc[0]
+current_weight = df['Actual Weight in Kgs'].iloc[-1]
 total_loss = current_weight - initial_weight
 
 # Row 1
@@ -73,15 +79,30 @@ st.divider()
 # ==========================================
 st.subheader("📉 True Weight Trajectory")
 fig_weight = go.Figure()
-fig_weight.add_trace(go.Scatter(x=df['Date'], y=df['Weight in Kgs'], mode='lines+markers', name='Daily', line=dict(color='rgba(0, 255, 170, 0.4)', dash='dot')))
-fig_weight.add_trace(go.Scatter(x=df['Date'], y=df['7-Day Avg Weight'], mode='lines', name='7-Day Avg', line=dict(color='#00FFAA', width=4)))
+fig_weight.add_trace(go.Scatter(x=df['Date'], y=df['Actual Weight in Kgs'], mode='lines+markers', name='Daily Actual', line=dict(color='rgba(0, 255, 170, 0.4)', dash='dot')))
+fig_weight.add_trace(go.Scatter(x=df['Date'], y=df['7-Day Avg Weight'], mode='lines', name='7-Day Avg Actual', line=dict(color='#00FFAA', width=4)))
 fig_weight = apply_mobile_layout(fig_weight)
 st.plotly_chart(fig_weight, use_container_width=True)
 
 st.divider()
 
 # ==========================================
-# 6. Effort vs. Output
+# 6. NEW: Predicted vs. Actual Weight
+# ==========================================
+st.subheader("🎯 Predicted vs. Actual Weight Loss")
+st.markdown("Comparing my actual scale weight against the mathematical predictions based on caloric deficit.")
+fig_pred = go.Figure()
+# Actual Weight (Solid Bright Green)
+fig_pred.add_trace(go.Scatter(x=df['Date'], y=df['Actual Weight in Kgs'], mode='lines+markers', name='Actual Weight', line=dict(color='#00FFAA', width=3)))
+# Predicted Weight (Dashed Red)
+fig_pred.add_trace(go.Scatter(x=df['Date'], y=df['Predicted Total Weight (Kgs)'], mode='lines', name='Predicted Weight', line=dict(color='#E74C3C', dash='dash', width=3)))
+fig_pred = apply_mobile_layout(fig_pred)
+st.plotly_chart(fig_pred, use_container_width=True)
+
+st.divider()
+
+# ==========================================
+# 7. Effort vs. Output
 # ==========================================
 st.subheader("🔥 Effort vs. Output")
 fig_effort = make_subplots(specs=[[{"secondary_y": True}]])
@@ -95,11 +116,11 @@ st.plotly_chart(fig_effort, use_container_width=True)
 st.divider()
 
 # ==========================================
-# 7. 3D Fitness Matrix
+# 8. 3D Fitness Matrix
 # ==========================================
 st.subheader("🌌 3D Fitness Matrix")
 fig_3d = px.scatter_3d(
-    df, x='Steps', y='Calories Burn', z='Weight in Kgs',
+    df, x='Steps', y='Calories Burn', z='Actual Weight in Kgs',
     color='Recovery (%)', size='Sleep (Hrs)',
     hover_name='Date', hover_data=['Strain'],
     color_continuous_scale='Viridis', template='plotly_dark'
@@ -111,10 +132,10 @@ st.plotly_chart(fig_3d, use_container_width=True)
 st.divider()
 
 # ==========================================
-# 8. Habit Correlation Matrix
+# 9. Habit Correlation Matrix
 # ==========================================
 st.subheader("🧬 Habit Correlation")
-metrics_df = df[['Steps', 'Calories Burn', 'Strain', 'Sleep (Hrs)', 'Recovery (%)', 'Weight in Kgs']]
+metrics_df = df[['Steps', 'Calories Burn', 'Strain', 'Sleep (Hrs)', 'Recovery (%)', 'Actual Weight in Kgs']]
 corr_matrix = metrics_df.corr().round(2)
 fig_corr = px.imshow(corr_matrix, text_auto=True, aspect="auto", color_continuous_scale='RdBu_r')
 fig_corr = apply_mobile_layout(fig_corr, is_heatmap=True)
@@ -123,7 +144,7 @@ st.plotly_chart(fig_corr, use_container_width=True)
 st.divider()
 
 # ==========================================
-# 9. Deep Dive Analytics
+# 10. Deep Dive Analytics
 # ==========================================
 st.title("🔬 Deep Dive Analytics")
 
