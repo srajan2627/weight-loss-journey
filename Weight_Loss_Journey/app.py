@@ -24,8 +24,9 @@ def load_data():
     df = df.dropna(subset=['Actual Weight in Kgs'])
     df['Date'] = pd.to_datetime(df['Date'], format='%d-%b-%y')
     
-    df['Steps'] = df['Steps'].fillna(0)
-    df['Calories Burn'] = df['Calories Burn'].fillna(0)
+    # FIX: Force Steps and Calories to be numeric (removes commas if Google Sheets formats them as text)
+    df['Steps'] = pd.to_numeric(df['Steps'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+    df['Calories Burn'] = pd.to_numeric(df['Calories Burn'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
     
     # Ensure prediction column is treated as numeric to avoid plotting errors
     df['Predicted Total Weight (Kgs)'] = pd.to_numeric(df['Predicted Total Weight (Kgs)'], errors='coerce')
